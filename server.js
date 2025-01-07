@@ -8,6 +8,9 @@ require('dotenv').config();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Enable trust proxy
+app.set('trust proxy', 1);
+
 // Enhanced middleware setup
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
@@ -44,7 +47,7 @@ app.get('/api/repos/:input', async (req, res) => {
     try {
         const username = extractUsername(req.params.input);
         if (!username) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 error: 'Invalid username input',
                 details: 'Please provide a valid GitHub username or URL'
             });
@@ -99,8 +102,8 @@ app.get('/api/repos/:input', async (req, res) => {
                     }
                     return acc;
                 }, {}),
-                latest_update: repos.length > 0 ? 
-                    repos.reduce((latest, repo) => 
+                latest_update: repos.length > 0 ?
+                    repos.reduce((latest, repo) =>
                         new Date(repo.updated_at) > new Date(latest) ? repo.updated_at : latest
                     , repos[0].updated_at) : null
             }

@@ -1,154 +1,262 @@
-const express = require('express');
-const axios = require('axios');
-const rateLimit = require('express-rate-limit');
-const cors = require('cors');
-const path = require('path');
-require('dotenv').config();
+let currentView = 'grid';
+let toast;
+let charts;
 
-const app = express();
-const port = process.env.PORT || 3000;
+document.addEventListener('DOMContentLoaded', () => {
+    toast = new Toast();
+    charts = new GitHubCharts();
 
-// Enable trust proxy
-app.set('trust proxy', 1);
+    // Initialize event listeners
+    document.getElementById('searchForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        fetchRepos();
+    });
 
-// Enhanced middleware setup
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-app.use(cors());
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    document.getElementById('gridViewBtn').addEventListener('click', () => setView('grid'));
+    document.getElementById('listViewBtn').addEventListener('click', () => setView('list'));
+    document.getElementById('copyAllBtn').addEventListener('click', copyAllRepoUrls);
 
-// Advanced rate limiting configuration
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: { error: 'Too many requests, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false
-});
-app.use('/api/', limiter);
-
-// GitHub API configuration
-const githubConfig = {
-    headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': process.env.GITHUB_TOKEN ? `token ${process.env.GITHUB_TOKEN}` : undefined
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+        document.querySelector('#themeToggle i').classList.add('fa-sun');
     }
-};
+});
 
-// Enhanced username extraction
-function extractUsername(input) {
-    if (!input) return null;
-    const githubUrlPattern = /github\.com\/([^\/]+)/;
-    const match = input.match(githubUrlPattern);
-    return match ? match[1] : input;
+async function fetchRepos() {
+    const input = document.getElementById('username').value.trim();
+    if (!input) {
+        toast.show('Please enter a GitHub username or URL', 'error');
+        return;
+    }
+
+    toggleLoadingState(true);
+    toggleDashboard(false);
+
+    try {
+        const response = await fetch(`https://github-explorer-mbqp.onrender.com/api/repos/${input}`);
+        const data = await response.json();
+       
+        if (response.ok) {
+            window.currentRepos = data.repositories;
+            updateUI(data);
+            toggleDashboard(true);
+            toast.show('Data fetched successfully!', 'success');
+        } else {
+            throw new Error(data.error || 'Failed to fetch data');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        toast.show(error.message, 'error');
+    } finally {
+        toggleLoadingState(false);
+    }
 }
 
-// Main API endpoint with enhanced error handling
-app.get('/api/repos/:input', async (req, res) => {
-    try {
-        const username = extractUsername(req.params.input);
-        if (!username) {
-            return res.status(400).json({
-                error: 'Invalid username input',
-                details: 'Please provide a valid GitHub username or URL'
-            });
-        }
 
-        const [userResponse, reposResponse] = await Promise.all([
-            axios.get(`https://api.github.com/users/${username}`, githubConfig),
-            axios.get(`https://api.github.com/users/${username}/repos?per_page=100&sort=updated`, githubConfig)
-        ]);
+function updateUI(data) {
+    updateProfileInfo(data.user);
+    updateOverviewStats(data);
+    updateStats(data.repositories);
+    updateRepoNames(data.repositories);
+    updateRepoLinks(data.repositories);
+    updateLanguageStats(data.stats.languages);
+    updateDetailedView(data.repositories);
+    charts.initialize(data);
+}
 
-        const repos = reposResponse.data.map(repo => ({
-            id: repo.id,
-            name: repo.name,
-            full_name: repo.full_name,
-            description: repo.description,
-            url: repo.html_url,
-            homepage: repo.homepage,
-            stars: repo.stargazers_count,
-            watchers: repo.watchers_count,
-            forks: repo.forks_count,
-            language: repo.language,
-            topics: repo.topics,
-            created_at: repo.created_at,
-            updated_at: repo.updated_at,
-            pushed_at: repo.pushed_at,
-            size: repo.size,
-            default_branch: repo.default_branch,
-            is_fork: repo.fork,
-            open_issues: repo.open_issues_count
-        }));
-
-        const response = {
-            user: {
-                login: userResponse.data.login,
-                name: userResponse.data.name,
-                avatar_url: userResponse.data.avatar_url,
-                bio: userResponse.data.bio,
-                public_repos: userResponse.data.public_repos,
-                followers: userResponse.data.followers,
-                following: userResponse.data.following,
-                created_at: userResponse.data.created_at,
-                updated_at: userResponse.data.updated_at
-            },
-            repositories: repos,
-            stats: {
-                total_repos: repos.length,
-                total_stars: repos.reduce((acc, repo) => acc + repo.stars, 0),
-                total_forks: repos.reduce((acc, repo) => acc + repo.forks, 0),
-                languages: repos.reduce((acc, repo) => {
-                    if (repo.language) {
-                        acc[repo.language] = (acc[repo.language] || 0) + 1;
-                    }
-                    return acc;
-                }, {}),
-                latest_update: repos.length > 0 ?
-                    repos.reduce((latest, repo) =>
-                        new Date(repo.updated_at) > new Date(latest) ? repo.updated_at : latest
-                    , repos[0].updated_at) : null
-            }
-        };
-
-        res.json(response);
-
-    } catch (error) {
-        const statusCode = error.response?.status || 500;
-        const errorMessage = {
-            404: 'GitHub user not found',
-            403: 'API rate limit exceeded',
-            500: 'Internal server error',
-            400: 'Bad request'
-        }[statusCode] || 'An unexpected error occurred';
-
-        res.status(statusCode).json({
-            error: errorMessage,
-            details: error.response?.data?.message || error.message
-        });
+function updateProfileInfo(user) {
+    const profileSection = document.getElementById('profile-info');
+    if (user) {
+        document.getElementById('profile-avatar').src = user.avatar_url;
+        document.getElementById('profile-name').textContent = user.name || user.login;
+        document.getElementById('profile-bio').textContent = user.bio || 'No bio available';
+        profileSection.classList.remove('hidden');
     }
-});
+}
 
-// Health check endpoint with enhanced information
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        uptime: process.uptime(),
-        memory: process.memoryUsage()
+function updateOverviewStats(data) {
+    document.getElementById('overview-stats').innerHTML = `
+        <div class="stat-card-modern">
+            <i class="fas fa-code-branch text-2xl mb-2 text-blue-400"></i>
+            <div class="text-3xl font-bold neon-text">${data.user.public_repos}</div>
+            <div class="text-sm">Total Repos</div>
+        </div>
+        <div class="stat-card-modern">
+            <i class="fas fa-star text-2xl mb-2 text-yellow-400"></i>
+            <div class="text-3xl font-bold neon-text">${data.stats.total_stars}</div>
+            <div class="text-sm">Total Stars</div>
+        </div>
+        <div class="stat-card-modern">
+            <i class="fas fa-code text-2xl mb-2 text-green-400"></i>
+            <div class="text-3xl font-bold neon-text">${Object.keys(data.stats.languages).length}</div>
+            <div class="text-sm">Languages</div>
+        </div>
+        <div class="stat-card-modern">
+            <i class="fas fa-users text-2xl mb-2 text-purple-400"></i>
+            <div class="text-3xl font-bold neon-text">${data.user.followers}</div>
+            <div class="text-sm">Followers</div>
+        </div>
+    `;
+}
+
+function updateStats(repos) {
+    const totalSize = repos.reduce((acc, repo) => acc + repo.size, 0);
+    document.getElementById('stats').innerHTML = `
+        <div class="stat-card-modern">
+            <div class="text-3xl font-bold neon-text">${repos.length}</div>
+            <div class="text-sm">Repositories</div>
+        </div>
+        <div class="stat-card-modern">
+            <div class="text-3xl font-bold neon-text">${formatSize(totalSize)}</div>
+            <div class="text-sm">Total Size</div>
+        </div>
+    `;
+}
+
+function updateRepoNames(repos) {
+    document.getElementById('repo-names').innerHTML = repos.map(repo => `
+        <div class="repo-card-modern">
+            <span class="font-medium">${repo.name}</span>
+            <span class="text-sm text-gray-400">${formatDate(repo.created_at)}</span>
+        </div>
+    `).join('');
+}
+
+function updateRepoLinks(repos) {
+    const repoLinksContainer = document.getElementById('repo-links');
+    repoLinksContainer.innerHTML = repos.map(repo => `
+      <div class="flex items-center justify-between repo-card-modern px-4 py-2">
+        <a href="${repo.url}" target="_blank" class="hover:text-blue-400 truncate">
+          ${repo.name}
+        </a>
+        <button class="copy-url-btn" data-url="${repo.url}" title="Copy URL">
+          <i class="fas fa-copy text-gray-400 hover:text-blue-400"></i>
+        </button>
+      </div>
+    `).join('');
+  
+    // Add event listeners to copy buttons
+    repoLinksContainer.querySelectorAll('.copy-url-btn').forEach(button => {
+      button.addEventListener('click', (event) => {
+        event.stopPropagation(); // Prevent triggering the parent's click event
+        const url = button.dataset.url;
+        copyToClipboard(url, 'URL copied to clipboard!');
+      });
     });
-});
+  }
+  
 
-// Error handling for undefined routes
-app.use((req, res) => {
-    res.status(404).json({ error: 'Route not found' });
-});
+function updateLanguageStats(languages) {
+    const sortedLanguages = Object.entries(languages).sort(([,a], [,b]) => b - a);
+    document.getElementById('language-stats').innerHTML = sortedLanguages.map(([lang, count]) => `
+        <div class="repo-card-modern">
+            <div class="flex items-center justify-between">
+                <span class="language-tag">${lang}</span>
+                <div class="flex items-center">
+                    <span class="font-bold mr-2">${count}</span>
+                    <div class="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-blue-400" style="width: ${(count/sortedLanguages[0][1])*100}%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
 
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: 'Something went wrong!' });
-});
+function updateDetailedView(repos) {
+    const detailedRepos = document.getElementById('detailed-repos');
+    detailedRepos.className = `grid gap-4 ${currentView === 'grid' ? 'grid-cols-1 md:grid-cols-2' : ''}`;
+    
+    detailedRepos.innerHTML = repos.map(repo => `
+        <div class="repo-card-modern">
+            <div class="flex justify-between items-start mb-2">
+                <h3 class="text-xl font-bold">
+                    <a href="${repo.url}" target="_blank" class="hover:text-blue-400 flex items-center">
+                        ${repo.name}
+                        <i class="fas fa-external-link-alt text-sm ml-2"></i>
+                    </a>
+                </h3>
+                <div class="flex gap-2">
+                    ${repo.language ? `<span class="language-tag">${repo.language}</span>` : ''}
+                    ${repo.is_fork ? '<span class="fork-tag"><i class="fas fa-code-branch"></i> Fork</span>' : ''}
+                </div>
+            </div>
+            <p class="text-gray-300 mb-3">${repo.description || 'No description available'}</p>
+            <div class="flex flex-wrap gap-4 text-sm text-gray-400">
+                <span><i class="fas fa-star"></i> ${repo.stars}</span>
+                <span><i class="fas fa-code-fork"></i> ${repo.forks}</span>
+                <span><i class="fas fa-clock"></i> ${formatDate(repo.updated_at)}</span>
+                <span><i class="fas fa-weight-hanging"></i> ${formatSize(repo.size)}</span>
+            </div>
+        </div>
+    `).join('');
+}
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-    console.log(`Health check available at http://localhost:${port}/health`);
-});
+function toggleLoadingState(isLoading) {
+    document.getElementById('loading-indicator').classList.toggle('hidden', !isLoading);
+}
+
+function toggleDashboard(show) {
+    document.getElementById('dashboard').classList.toggle('hidden', !show);
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+}
+
+function formatSize(size) {
+    const units = ['KB', 'MB', 'GB'];
+    let index = 0;
+    let value = size;
+
+    while (value > 1024 && index < units.length - 1) {
+        value /= 1024;
+        index++;
+    }
+
+    return `${value.toFixed(1)} ${units[index]}`;
+}
+
+function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    const icon = document.querySelector('#themeToggle i');
+    icon.classList.toggle('fa-moon');
+    icon.classList.toggle('fa-sun');
+    
+    const isDark = document.documentElement.classList.contains('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+}
+
+function setView(view) {
+    currentView = view;
+    document.querySelectorAll('.view-toggle-btn').forEach(btn =>
+        btn.classList.toggle('active', btn.id === `${view}ViewBtn`)
+    );
+    updateDetailedView(window.currentRepos || []);
+}
+
+function copyToClipboard(text, message) {
+    navigator.clipboard.writeText(text).then(() => {
+      toast.show(message, 'success');
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      toast.show('Failed to copy text', 'error');
+    });
+  }
+  
+  function copyAllRepoUrls() {
+    if (!window.currentRepos || window.currentRepos.length === 0) {
+      toast.show('No repositories to copy URLs from', 'error');
+      return;
+    }
+  
+    const allUrls = window.currentRepos.map(repo => repo.url).join('\n');
+    copyToClipboard(allUrls, 'All Repo URLs copied to clipboard!');
+  }
