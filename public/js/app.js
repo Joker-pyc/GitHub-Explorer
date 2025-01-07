@@ -36,9 +36,9 @@ async function fetchRepos() {
     toggleDashboard(false);
 
     try {
-        const response = await fetch(`/api/repos/${input}`);
+        const response = await fetch(`https://github-explorer-mbqp.onrender.com/api/repos/${input}`);
         const data = await response.json();
-        
+       
         if (response.ok) {
             window.currentRepos = data.repositories;
             updateUI(data);
@@ -54,6 +54,7 @@ async function fetchRepos() {
         toggleLoadingState(false);
     }
 }
+
 
 function updateUI(data) {
     updateProfileInfo(data.user);
