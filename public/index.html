@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Explorer Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/charts.css">
+</head>
+<body class="bg-black min-h-screen text-white">
+    <div class="fixed top-4 right-4 z-10">
+        <button id="themeToggle" class="neo-button-circle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <div class="container mx-auto p-8">
+        <div class="glass-card text-center p-8 mb-8 hover-lift">
+            <div class="profile-section mb-6 hidden" id="profile-info">
+                <img id="profile-avatar" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-blue-500" src="" alt="">
+                <h2 id="profile-name" class="text-3xl font-bold mb-2"></h2>
+                <p id="profile-bio" class="text-gray-300 text-lg"></p>
+            </div>
+
+            <h1 class="text-5xl font-bold mb-6">GitHub Explorer Pro</h1>
+            <form id="searchForm" class="flex gap-4 justify-center flex-wrap items-center">
+                <div class="search-container relative flex-grow max-w-xl">
+                    <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg"></i>
+                    <input type="text" id="username" placeholder="Enter GitHub username" class="neo-input w-full pl-12">
+                </div>
+                <button type="submit" class="neo-button">
+                    <i class="fas fa-rocket mr-2 text-lg"></i>Explore
+                </button>
+            </form>
+        </div>
+
+        <div id="loading-indicator" class="hidden flex justify-center">
+            <div class="loader-container">
+                <div class="cyber-loader"></div>
+                <p class="mt-4 text-center">Fetching Data...</p>
+            </div>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <div class="glass-card p-6 mb-6 hover-lift">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="overview-stats">
+                    
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-card p-6 hover-lift">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">Key Metrics</h2>
+                        <i class="fas fa-chart-bar text-blue-400 text-lg"></i>
+                    </div>
+                    <div id="stats" class="grid grid-cols-2 gap-4"></div>
+                </div>
+
+                <div class="glass-card p-6 hover-lift">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">Repositories</h2>
+                        <i class="fas fa-code-branch text-blue-400 text-lg"></i>
+                    </div>
+                    <div id="repo-names" class="neo-list custom-scrollbar max-h-48 overflow-y-auto"></div>
+                </div>
+
+                <div class="glass-card p-6 hover-lift">
+                    <div class="flex justify-between items-center mb-4">
+                      <h2 class="text-2xl font-bold">Repo URLs</h2>
+                      <div class="flex gap-2 items-center">
+                        <button id="copyAllBtn" class="neo-button-circle" title="Copy All URLs">
+                          <i class="fas fa-copy"></i>
+                        </button>
+                        <i class="fas fa-link text-blue-400 text-lg"></i>
+                      </div>
+                    </div>
+                    <div id="repo-links" class="neo-list custom-scrollbar max-h-48 overflow-y-auto space-y-2"></div>
+                  </div>
+                  
+
+                <div class="glass-card p-6 hover-lift">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-bold">Languages</h2>
+                        <i class="fas fa-code text-blue-400 text-lg"></i>
+                    </div>
+                    <div id="language-stats" class="neo-list custom-scrollbar max-h-48 overflow-y-auto"></div>
+                </div>
+            </div>
+
+            <div id="charts-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            </div>
+
+            <div class="glass-card mt-6 p-6 hover-lift">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Detailed Repositories</h2>
+                    <div class="flex gap-2">
+                        <button id="gridViewBtn" class="view-toggle-btn active">
+                            <i class="fas fa-th-large text-lg"></i>
+                        </button>
+                        <button id="listViewBtn" class="view-toggle-btn">
+                            <i class="fas fa-list text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="detailed-repos" class="grid gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <p>Made with <i class="fas fa-heart"></i> by <a href="https://github.com/Joker-pyc">Joker-Pyc</a></p>
+    </footer>
+    
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="js/toast.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
